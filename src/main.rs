@@ -12,7 +12,8 @@ macro_rules! tr {
 
 struct TreeIter<T> {
     item: Option<T>,
-    children: Box<[TreeIter<T>]>,
+    current_child: Option<Box<TreeIter<T>>>,
+    children: std::iter::Peekable<std::vec::IntoIter<Tree<T>>>
 }
 
 // depth-first items, and whether the branch is the last branch of its parent
@@ -22,17 +23,22 @@ impl<T> std::iter::Iterator for TreeIter<T> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(item) = self.item.take() { // start a branch
             Some((vec![], item))
-        } else {
-            let mut iter = self.children.iter_mut().peekable();
-            // peek used to check if child is a last child
-            while let Some(child) = iter.next() {
-                if let Some((mut depth, item)) = child.next() {
-                    depth.push(iter.peek().is_none());
-                    return Some((depth, item))
-                }
+        } else if let Some(current_child) = self.current_child.as_mut() {
+            if let Some((mut depth, item)) = current_child.next() {
+                depth.push(self.children.peek().is_none());
+                Some((depth, item))
+            } else {
+                self.current_child = None;
+                self.next()
             }
-            // All children exhausted
-            None
+        } else {
+            let next_child = self.children.next();
+            if let Some(next_child) = next_child {
+                self.current_child = Some(Box::new(next_child.into_iter()));
+                self.next()
+            } else {
+                None
+            }
         }
     }
 }
@@ -42,10 +48,11 @@ impl<T> IntoIterator for Tree<T> {
     type Item = <TreeIter<T> as Iterator>::Item;
 
     fn into_iter(self) -> Self::IntoIter {
-        let child_iter = self.children.into_iter().map(Self::into_iter).collect();
+        let child_iter = self.children.into_iter().peekable();
         TreeIter {
             item: Some(self.value),
             children: child_iter,
+            current_child: None,
         }
     }
 }
