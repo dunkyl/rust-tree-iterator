@@ -10,15 +10,16 @@ macro_rules! tr {
     ($value:expr) => { tr!($value, []) };
 }
 
+type ChildIter<T> = std::iter::Peekable<std::vec::IntoIter<Tree<T>>>;
 
 enum TreeIter<T> {
     Exhausted,
-    Value(T, std::iter::Peekable<std::vec::IntoIter<Tree<T>>>),
-    Children(Box<TreeIter<T>>, std::iter::Peekable<std::vec::IntoIter<Tree<T>>>)
+    Value(T, ChildIter<T>),
+    Children(Box<TreeIter<T>>, ChildIter<T>)
 }
 
 impl<T> TreeIter<T> {
-    fn from_children(mut children: std::iter::Peekable<std::vec::IntoIter<Tree<T>>>) -> Self {
+    fn from_children(mut children: ChildIter<T>) -> Self {
         if let Some(next_child) = children.next() {
             Self::Children(Box::new(next_child.into_iter()), children)
         } else {
